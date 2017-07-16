@@ -1,3 +1,4 @@
+import calendar
 import datetime as dt
 
 from sqlalchemy import create_engine
@@ -18,7 +19,7 @@ ponto = Table('ponto', metadata,
     Column('leave_time', String(5)),
 )
 
-engine = create_engine('CONNECTION')
+engine = create_engine('sqlite:///ponto.db')
 metadata.create_all(engine)
 
 
@@ -96,10 +97,45 @@ def str_to_datetime(time, fmt='%H:%M'):
     return dt.datetime.strptime(time, fmt)
 
 
+def time_sum(*time_list):
+    total = dt.timedelta()
+    for time in time_list:
+        h, m = time.split(':')
+        total += dt.timedelta(hours=int(h), minutes=int(m))
+
+    seconds = int(total.total_seconds())
+    return '{0}:{1:02d}'.format(seconds//3600, seconds//60 % 60)
+
+
 def time_difference(start_time, end_time):
     diff = str_to_datetime(end_time) - str_to_datetime(start_time)
     seconds = int(diff.total_seconds())
     return '{0}:{1:02d}'.format(seconds//3600, seconds//60 % 60)
+
+
+def current_month_date_range(date=dt.date.today()):
+    total_days = calendar.monthrange(date.year, date.month)[1]
+
+    start = dt.date(date.year, date.month, 1)
+    end = dt.date(date.year, date.month, total_days)
+
+    return start, end
+
+
+def hour_bank_record(user_id, date=dt.date.today()):
+    start_date, end_date = current_month_date_range()
+
+    time_list = list()
+    for row in engine.execute(
+        ponto.select()
+        .where(ponto.c.date >= start_date)
+        .where(ponto.c.date <= end_date)
+        .where(ponto.c.user_id == user_id)
+    ):
+        time = get_remaining_time(user_id, row.date)
+        time_list.append(time)
+
+    return time_sum(*time_list)
 
 
 def start(bot, update):
@@ -107,7 +143,7 @@ def start(bot, update):
         'Lista de comandos:',
         '/ponto - Registrar o meu ponto',
         '/embora - Eu já posso ir embora? Quanto de banco eu fiz?',
-        # '/situacao - Total banco de horas'
+        '/situacao - Total de banco de horas nesse mês',
     ]
 
     update.message.reply_text('\n'.join(messages))
@@ -128,7 +164,6 @@ def register_time(bot, update):
 
 def can_i_leave(bot, update):
     user = update.message.from_user
-
     remaining_time = get_remaining_time(user.id).replace(':', 'h')
 
     if remaining_time.startswith('-'):
@@ -138,7 +173,13 @@ def can_i_leave(bot, update):
 
 
 def hour_bank_report(bot, update):
-    pass
+    user = update.message.from_user
+    accumulated_hours = hour_bank_record(user.id).replace(':', 'h')
+
+    if accumulated_hours.startswith('-'):
+        update.message.reply_text('Você está devendo %s esse mês' % accumulated_hours[1:])
+    else:
+        update.message.reply_text('Você tem um total de %s de banco' % accumulated_hours)
 
 
 def main():
