@@ -73,6 +73,13 @@ def register_time_to_mysql(user, time_field, time, date=dt.date.today()):
         print('Nothing')
 
 
+def lunch_calculation(lunch_start, lunch_back):
+    diff = time_difference(lunch_start, lunch_back)
+    if time_difference(diff, '1:30').startswith('-'):
+        return diff
+    else:
+        return '1:00'
+
 def get_remaining_time(user_id, date=dt.date.today()):
     result = engine.execute(
         ponto.select()
@@ -86,7 +93,7 @@ def get_remaining_time(user_id, date=dt.date.today()):
         current_time = time_difference('3:00', dt.datetime.now().strftime('%H:%M'))
         work_time = time_difference(result.arrival_time, current_time)
 
-    lunch_time = time_difference(result.lunch_start, result.lunch_back)
+    lunch_time = lunch_calculation(result.lunch_start, result.lunch_back)
 
     actual_time = time_difference(lunch_time, work_time)
 
