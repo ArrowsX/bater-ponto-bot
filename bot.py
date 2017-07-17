@@ -56,7 +56,7 @@ def register_time_to_mysql(user, time_field, time, date=dt.date.today()):
     ).fetchone()
 
     if result and time_field:
-        row[time_field] = time
+        row[time_field] = time_difference('3:00', time)
 
         engine.execute(
             ponto.update()
@@ -66,7 +66,7 @@ def register_time_to_mysql(user, time_field, time, date=dt.date.today()):
         )
 
     elif not result:
-        row[time_field] = time  # Not overwrite arrival time
+        row[time_field] = time_difference('3:00', time)  # Not overwrite arrival time
         engine.execute(ponto.insert().values(**row))
 
     elif not time_field:
@@ -83,7 +83,7 @@ def get_remaining_time(user_id, date=dt.date.today()):
     if result.leave_time:
         work_time = time_difference(result.arrival_time, result.leave_time)
     else:
-        current_time = dt.datetime.now().strftime('%H:%M')
+        current_time = time_difference('3:00', dt.datetime.now().strftime('%H:%M'))
         work_time = time_difference(result.arrival_time, current_time)
 
     lunch_time = time_difference(result.lunch_start, result.lunch_back)
@@ -127,10 +127,11 @@ def hour_bank_record(user_id, date=dt.date.today()):
 
     time_list = list()
     for row in engine.execute(
-        ponto.select()
-        .where(ponto.c.date >= start_date)
-        .where(ponto.c.date <= end_date)
-        .where(ponto.c.user_id == user_id)
+            ponto.select()
+            .where(ponto.c.date >= start_date)
+            .where(ponto.c.date <= end_date)
+            .where(ponto.c.user_id == user_id)
+            .where(ponto.c.leave_time != None)
     ):
         time = get_remaining_time(user_id, row.date)
         time_list.append(time)
