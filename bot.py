@@ -24,7 +24,6 @@ ponto = Table('ponto', metadata,
 )
 
 engine = create_engine(CONNECTION)
-# metadata.create_all(engine)
 
 
 def get_missing_time_field(user_id, date=dt.date.today()):
@@ -219,6 +218,7 @@ def one_day_off(bot, update):
 
 
 def main():
+    metadata.create_all(engine)
     updater = Updater(TOKEN)
     dispatcher = updater.dispatcher
 
