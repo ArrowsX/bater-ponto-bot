@@ -1,3 +1,4 @@
+import logging
 import calendar
 import datetime as dt
 
@@ -5,6 +6,9 @@ from sqlalchemy import create_engine
 from sqlalchemy import MetaData, Table, Column, Date, Integer, BigInteger, String
 from telegram.ext import Updater, CommandHandler
 
+from credentials import CONNECTION, TOKEN
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 metadata = MetaData()
 
 ponto = Table('ponto', metadata,
@@ -19,8 +23,8 @@ ponto = Table('ponto', metadata,
     Column('leave_time', String(5)),
 )
 
-engine = create_engine('sqlite:///ponto.db')
-metadata.create_all(engine)
+engine = create_engine(CONNECTION)
+# metadata.create_all(engine)
 
 
 def get_missing_time_field(user_id, date=dt.date.today()):
@@ -44,33 +48,30 @@ def get_missing_time_field(user_id, date=dt.date.today()):
 def register_time_to_mysql(user, time_field, time, date=dt.date.today()):
     row = {
         'date': date,
-        'first_name': user.first_name,
-        'last_name': user.last_name,
-        'user_id': user.id,
+        'first_name': user['first_name'],
+        'last_name': user['last_name'],
+        'user_id': user['id'],
     }
 
     result = engine.execute(
         ponto.select()
         .where(ponto.c.date == date)
-        .where(ponto.c.user_id == user.id)
+        .where(ponto.c.user_id == user['id'])
     ).fetchone()
 
-    if result and time_field:
-        row[time_field] = time_difference('3:00', time)
+    if result:
+        row[time_field] = time
 
         engine.execute(
             ponto.update()
             .where(ponto.c.date == date)
-            .where(ponto.c.user_id == user.id)
+            .where(ponto.c.user_id == user['id'])
             .values(**row)
         )
 
-    elif not result:
-        row[time_field] = time_difference('3:00', time)  # Not overwrite arrival time
+    else:
+        row[time_field] = time  # Not overwrite arrival time
         engine.execute(ponto.insert().values(**row))
-
-    elif not time_field:
-        print('Nothing')
 
 
 def lunch_calculation(lunch_start, lunch_back):
@@ -79,6 +80,7 @@ def lunch_calculation(lunch_start, lunch_back):
         return diff
     else:
         return '1:00'
+
 
 def get_remaining_time(user_id, date=dt.date.today()):
     result = engine.execute(
@@ -90,7 +92,7 @@ def get_remaining_time(user_id, date=dt.date.today()):
     if result.leave_time:
         work_time = time_difference(result.arrival_time, result.leave_time)
     else:
-        current_time = time_difference('3:00', dt.datetime.now().strftime('%H:%M'))
+        current_time = dt.datetime.now().strftime('%H:%M')
         work_time = time_difference(result.arrival_time, current_time)
 
     lunch_time = lunch_calculation(result.lunch_start, result.lunch_back)
@@ -130,7 +132,7 @@ def current_month_date_range(date=dt.date.today()):
 
 
 def hour_bank_record(user_id, date=dt.date.today()):
-    start_date, end_date = current_month_date_range()
+    start_date, end_date = current_month_date_range(date)
 
     time_list = list()
     for row in engine.execute(
@@ -144,6 +146,19 @@ def hour_bank_record(user_id, date=dt.date.today()):
         time_list.append(time)
 
     return time_sum(*time_list)
+
+
+def set_day_off(user_id, date=dt.date.today()):
+    engine.execute(
+        ponto.insert().values(
+            user_id=user_id,
+            date=date,
+            arrival_time='8:00',
+            lunch_start='8:00',
+            lunch_back='9:00',
+            leave_time='9:00'
+        )
+    )
 
 
 def start(bot, update):
@@ -181,8 +196,21 @@ def can_i_leave(bot, update):
 
 
 def hour_bank_report(bot, update):
-    user = update.message.from_user
-    accumulated_hours = hour_bank_record(user.id).replace(':', 'h')
+    user_id = update.message.from_user.id
+    accumulated_hours = hour_bank_record(user_id).replace(':', 'h')
+
+    if accumulated_hours.startswith('-'):
+        update.message.reply_text('Você está devendo %s esse mês' % accumulated_hours[1:])
+    else:
+        update.message.reply_text('Você tem um total de %s de banco' % accumulated_hours)
+
+
+def one_day_off(bot, update):
+    user_id = update.message.from_user.id
+    set_day_off(user_id)
+    update.message.reply_text('Desconto de 8 horas no banco')
+
+    accumulated_hours = hour_bank_record(user_id).replace(':', 'h')
 
     if accumulated_hours.startswith('-'):
         update.message.reply_text('Você está devendo %s esse mês' % accumulated_hours[1:])
@@ -191,13 +219,14 @@ def hour_bank_report(bot, update):
 
 
 def main():
-    updater = Updater('YOUR-TOKEN')
+    updater = Updater(TOKEN)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("ponto", register_time))
     dispatcher.add_handler(CommandHandler("embora", can_i_leave))
     dispatcher.add_handler(CommandHandler("situacao", hour_bank_report))
+    dispatcher.add_handler(CommandHandler("faltei", one_day_off))
 
     updater.start_polling()
     updater.idle()
