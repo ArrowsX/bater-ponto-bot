@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import MetaData, Table, Column, Date, Integer, BigInteger, String
 from telegram.ext import Updater, CommandHandler
 
-from credentials import CONNECTION, TOKEN
+from credentials import CONNECTION, TOKEN  # Constants from credentials.py -> your choice
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 metadata = MetaData()
@@ -23,7 +23,7 @@ ponto = Table('ponto', metadata,
     Column('leave_time', String(5)),
 )
 
-engine = create_engine(CONNECTION)
+engine = create_engine(CONNECTION)  # Default to 'sqlite:///ponto.db'
 
 
 def get_missing_time_field(user_id, date=dt.date.today()):
@@ -98,7 +98,14 @@ def get_remaining_time(user_id, date=dt.date.today()):
 
     actual_time = time_difference(lunch_time, work_time)
 
-    return time_difference('8:00', actual_time)
+    remaining_time = time_difference('8:00', actual_time)
+    if remaining_time.startswith('-'):
+        return remaining_time
+    else:
+        if time_difference('2:00', remaining_time).startswith('-'):
+            return remaining_time
+        else:
+            return '2:00'
 
 
 def str_to_datetime(time, fmt='%H:%M'):
@@ -117,8 +124,12 @@ def time_sum(*time_list):
 
 def time_difference(start_time, end_time):
     diff = str_to_datetime(end_time) - str_to_datetime(start_time)
+    logging.info('{} - {}'.format(end_time, start_time))
     seconds = int(diff.total_seconds())
-    return '{0}:{1:02d}'.format(seconds//3600, seconds//60 % 60)
+    if seconds < 0:
+        return '-{0}:{1:02d}'.format(-seconds//3600, seconds//60 % 60)
+    else:
+        return '{0}:{1:02d}'.format(seconds//3600, seconds//60 % 60)
 
 
 def current_month_date_range(date=dt.date.today()):
@@ -219,7 +230,7 @@ def one_day_off(bot, update):
 
 def main():
     metadata.create_all(engine)
-    updater = Updater(TOKEN)
+    updater = Updater(TOKEN)  # Get your token from BotFather
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("start", start))

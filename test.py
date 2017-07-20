@@ -100,7 +100,17 @@ class BaterPontoTest(unittest.TestCase):
                 arrival_time='8:00',
                 lunch_start='12:00',
                 lunch_back='13:29',
-                leave_time='17:00',
+                leave_time='16:30',
+            )
+        )
+
+        self.assertEqual(bot.get_remaining_time(12345678), '-0:30')
+
+        bot.engine.execute(
+            bot.ponto.update()
+            .where(bot.ponto.c.user_id == 12345678)
+            .values(
+                leave_time='17:00'
             )
         )
 
@@ -115,6 +125,16 @@ class BaterPontoTest(unittest.TestCase):
         )
 
         self.assertEqual(bot.get_remaining_time(12345678), '1:30')
+
+        bot.engine.execute(
+            bot.ponto.update()
+            .where(bot.ponto.c.user_id == 12345678)
+            .values(
+                leave_time='19:30'
+            )
+        )
+
+        self.assertEqual(bot.get_remaining_time(12345678), '2:00')
 
     def test_str_to_datetime(self):
         self.assertEqual(bot.str_to_datetime('1:00'), dt.datetime(1900, 1, 1, 1, 0))
@@ -135,7 +155,8 @@ class BaterPontoTest(unittest.TestCase):
     def test_time_difference(self):
         self.assertEqual(bot.time_difference('1:00', '2:00'), '1:00')
         self.assertEqual(bot.time_difference('2:00', '1:00'), '-1:00')
-        self.assertEqual(bot.time_difference('8:00', '0:00'), '-8:00')
+        self.assertEqual(bot.time_difference('8:30', '8:00'), '-0:30')
+        self.assertEqual(bot.time_difference('8:30', '7:00'), '-1:30')
 
     def test_current_month_date_range(self):
         date = dt.date(2017, 1, 15)
