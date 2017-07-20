@@ -156,7 +156,7 @@ class BaterPontoTest(unittest.TestCase):
         self.assertEqual(bot.time_difference('1:00', '2:00'), '1:00')
         self.assertEqual(bot.time_difference('2:00', '1:00'), '-1:00')
         self.assertEqual(bot.time_difference('8:30', '8:00'), '-0:30')
-        self.assertEqual(bot.time_difference('8:30', '7:00'), '-1:30')
+        self.assertEqual(bot.time_difference('8:30', '0:00'), '-8:30')
 
     def test_current_month_date_range(self):
         date = dt.date(2017, 1, 15)
@@ -210,6 +210,19 @@ class BaterPontoTest(unittest.TestCase):
         )
 
         self.assertEqual(bot.hour_bank_record(12345678, date), '-1:00')
+
+        bot.engine.execute(
+            bot.ponto.insert().values(
+                user_id=12345678,
+                date=dt.date(2017, 1, 4),
+                arrival_time='8:00',
+                lunch_start='8:00',
+                lunch_back='9:00',
+                leave_time='9:00',
+            )
+        )
+
+        self.assertEqual(bot.hour_bank_record(12345678, date), '-9:00')
 
     def test_one_day_off(self):
         bot.set_day_off(12345678)

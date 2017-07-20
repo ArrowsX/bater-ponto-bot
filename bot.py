@@ -124,7 +124,6 @@ def time_sum(*time_list):
 
 def time_difference(start_time, end_time):
     diff = str_to_datetime(end_time) - str_to_datetime(start_time)
-    logging.info('{} - {}'.format(end_time, start_time))
     seconds = int(diff.total_seconds())
     if seconds < 0:
         return '-{0}:{1:02d}'.format(-seconds//3600, seconds//60 % 60)
@@ -191,7 +190,6 @@ def register_time(bot, update):
         register_time_to_mysql(user, missing_time_field, time)
         update.message.reply_text('%s registrado' % missing_time_field)
     else:
-        # TODO: Check if user can leave first
         update.message.reply_text('Chega de trabalhar, tchau!')
 
 
